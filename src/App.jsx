@@ -318,7 +318,7 @@ export default function ExcelProcessor() {
             <ul className="space-y-2 text-sm text-gray-600">
               <li className="flex items-start">
                 <span className="font-bold text-indigo-600 mr-2">1.</span>
-                Division mapping loads automatically from division-mapping.json
+                Division mapping loads automatically
               </li>
               <li className="flex items-start">
                 <span className="font-bold text-indigo-600 mr-2">2.</span>
