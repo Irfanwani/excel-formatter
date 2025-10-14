@@ -118,23 +118,6 @@ export default function ExcelProcessor() {
         const outputData = [];
         const sortedDivisions = Object.keys(divisionGroups).sort();
 
-        // sortedDivisions.forEach((division) => {
-        //   const stations = divisionGroups[division];
-
-        //   // Add division header row
-        //   const headerRow = {};
-        //   headerRow["OFFICE"] = division;
-        //   headerRow["NO. OF TOOLKITS"] = "";
-        //   outputData.push(headerRow);
-
-        //   // Add station rows
-        //   stations.forEach(({ station, count }) => {
-        //     outputData.push({
-        //       OFFICE: station,
-        //       "NO. OF TOOLKITS": count,
-        //     });
-        //   });
-        // });
 
         const divisionHeaders = [];
         const subHeaders = [];
