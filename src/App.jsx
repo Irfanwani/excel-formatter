@@ -33,15 +33,6 @@ export default function ExcelProcessor() {
     }
   };
 
-  const findDivision = (station) => {
-    for (const [division, stations] of Object.entries(divisionMapping)) {
-      if (stations.some(s => s.toLowerCase() === station.toLowerCase())) {
-        return division;
-      }
-    }
-    return null;
-  };
-
   const processExcel = async () => {
     if (!file) {
       setError('Please select an Excel file first');
@@ -141,7 +132,7 @@ export default function ExcelProcessor() {
             const offices = divisionData[division];
             if (rowIndex < offices.length) {
               dataRow[`col${colOffset}`] = offices[rowIndex].office;
-              dataRow[`col${colOffset + 1}`] = offices[rowIndex].count || 0;
+              dataRow[`col${colOffset + 1}`] = offices[rowIndex].count;
             } else {
               dataRow[`col${colOffset}`] = '';
               dataRow[`col${colOffset + 1}`] = '';
@@ -156,7 +147,7 @@ export default function ExcelProcessor() {
           const colOffset = divIndex * 2;
           const total = divisionData[division].reduce((sum, item) => sum + item.count, 0);
           totalRow[`col${colOffset}`] = 'Total';
-          totalRow[`col${colOffset + 1}`] = total || 0;
+          totalRow[`col${colOffset + 1}`] = total;
         });
         outputData.push(totalRow);
 
@@ -165,8 +156,8 @@ export default function ExcelProcessor() {
           const arr = [];
           let colIndex = 0;
           while (row[`col${colIndex}`] !== undefined || row[`col${colIndex + 1}`] !== undefined) {
-            arr.push(row[`col${colIndex}`] || '');
-            arr.push(row[`col${colIndex + 1}`] || '');
+            arr.push(row[`col${colIndex}`]);
+            arr.push(row[`col${colIndex + 1}`]);
             colIndex += 2;
           }
           return arr;
