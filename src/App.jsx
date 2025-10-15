@@ -1,31 +1,23 @@
-import { useState } from "react";
-import * as XLSX from "xlsx";
-import {
-  Upload,
-  Download,
-  FileSpreadsheet,
-  AlertCircle,
-  Settings,
-} from "lucide-react";
-import stationMapping from "./assets/mapping.json";
+import { useState } from 'react';
+import * as XLSX from 'xlsx';
+import { Upload, Download, FileSpreadsheet, AlertCircle, Settings } from 'lucide-react';
+import divisionMappingData from './assets/mapping.json';
 
 export default function ExcelProcessor() {
   const [file, setFile] = useState(null);
   const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [showMapping, setShowMapping] = useState(false);
-  const [divisionMapping, setDivisionMapping] = useState(stationMapping);
-  const [mappingText, setMappingText] = useState(
-    JSON.stringify(stationMapping, null, 2)
-  );
+  const [divisionMapping, setDivisionMapping] = useState(divisionMappingData);
+  const [mappingText, setMappingText] = useState(JSON.stringify(divisionMappingData, null, 2));
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
       setFile(selectedFile);
-      setError("");
-      setSuccess("");
+      setError('');
+      setSuccess('');
     }
   };
 
@@ -34,40 +26,40 @@ export default function ExcelProcessor() {
       const parsed = JSON.parse(mappingText);
       setDivisionMapping(parsed);
       setShowMapping(false);
-      setError("");
-      setSuccess("Division mapping updated successfully!");
+      setError('');
+      setSuccess('Division mapping updated successfully!');
     } catch (err) {
-      setError("Invalid JSON format for division mapping", err);
+      setError('Invalid JSON format for division mapping', err);
     }
   };
 
   const findDivision = (station) => {
     for (const [division, stations] of Object.entries(divisionMapping)) {
-      if (stations.some((s) => s.toLowerCase() === station.toLowerCase())) {
+      if (stations.some(s => s.toLowerCase() === station.toLowerCase())) {
         return division;
       }
     }
-    return "Other";
+    return null;
   };
 
   const processExcel = async () => {
     if (!file) {
-      setError("Please select an Excel file first");
+      setError('Please select an Excel file first');
       return;
     }
 
     if (!divisionMapping) {
-      setError("Division mapping not loaded yet");
+      setError('Division mapping not loaded yet');
       return;
     }
 
     setProcessing(true);
-    setError("");
-    setSuccess("");
+    setError('');
+    setSuccess('');
 
     try {
       const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: "array" });
+      const workbook = XLSX.read(data, { type: 'array' });
 
       const outputWorkbook = XLSX.utils.book_new();
 
@@ -76,13 +68,11 @@ export default function ExcelProcessor() {
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
         const stationKey = Object.keys(jsonData[0] || {}).find(
-          (key) => key.toUpperCase() === "STATION"
+          key => key.toUpperCase() === 'STATION'
         );
 
         if (!stationKey) {
-          throw new Error(
-            `Sheet "${sheetName}" does not have a STATION column`
-          );
+          throw new Error(`Sheet "${sheetName}" does not have a STATION column`);
         }
 
         // Count occurrences of each station
@@ -97,96 +87,132 @@ export default function ExcelProcessor() {
           }
         });
 
-        // Group by division
-        const divisionGroups = {};
-        Object.entries(stationCounts).forEach(([station, count]) => {
-          const division = findDivision(station);
-          if (!divisionGroups[division]) {
-            divisionGroups[division] = [];
-          }
-          divisionGroups[division].push({ station, count });
-        });
-
-        // Sort stations within each division alphabetically
-        Object.keys(divisionGroups).forEach((division) => {
-          divisionGroups[division].sort((a, b) =>
-            a.station.localeCompare(b.station)
-          );
-        });
-
-        // Create output data with division headers
-        const outputData = [];
-        const sortedDivisions = Object.keys(divisionGroups).sort();
-
-
-        const divisionHeaders = [];
-        const subHeaders = [];
-
-        sortedDivisions.forEach((division) => {
-          divisionHeaders.push(division, "", ""); // division spans two columns
-          subHeaders.push("Office", "No. of Toolkits", "");
-        });
-
-        // Find max number of rows among divisions
-        const maxRows = Math.max(
-          ...sortedDivisions.map((division) => divisionGroups[division].length)
-        );
-
-        // Build row data
-        for (let i = 0; i < maxRows; i++) {
-          const row = [];
-          sortedDivisions.forEach((division) => {
-            const stationData = divisionGroups[division][i];
-            row.push(stationData ? stationData.station : "");
-            row.push(stationData ? stationData.count : "");
-            row.push("");
+        // Build division data with all offices from mapping
+        const sortedDivisions = Object.keys(divisionMapping).sort();
+        const divisionData = {};
+        
+        sortedDivisions.forEach(division => {
+          const offices = divisionMapping[division];
+          const officeData = [];
+          
+          // Add all offices from mapping, sorted alphabetically
+          const sortedOffices = [...offices].sort((a, b) => a.localeCompare(b));
+          sortedOffices.forEach(office => {
+            // Find matching station (case-insensitive)
+            const matchingStation = Object.keys(stationCounts).find(
+              station => station.toLowerCase() === office.toLowerCase()
+            );
+            const count = matchingStation ? stationCounts[matchingStation] : 0;
+            officeData.push({ office, count });
           });
-          outputData.push(row);
+          
+          divisionData[division] = officeData;
+        });
+
+        // Calculate max rows needed
+        const maxRows = Math.max(...Object.values(divisionData).map(d => d.length));
+
+        // Create output data in horizontal format
+        const outputData = [];
+        
+        // Header row 1: Division names
+        const divisionHeaderRow = {};
+        sortedDivisions.forEach((division, index) => {
+          const colOffset = index * 2;
+          divisionHeaderRow[`col${colOffset}`] = division;
+          divisionHeaderRow[`col${colOffset + 1}`] = '';
+        });
+        outputData.push(divisionHeaderRow);
+
+        // Header row 2: Office and No. of Toolkits
+        const columnHeaderRow = {};
+        sortedDivisions.forEach((division, index) => {
+          const colOffset = index * 2;
+          columnHeaderRow[`col${colOffset}`] = 'Office';
+          columnHeaderRow[`col${colOffset + 1}`] = 'No. of Toolkits';
+        });
+        outputData.push(columnHeaderRow);
+
+        // Data rows
+        for (let rowIndex = 0; rowIndex < maxRows; rowIndex++) {
+          const dataRow = {};
+          sortedDivisions.forEach((division, divIndex) => {
+            const colOffset = divIndex * 2;
+            const offices = divisionData[division];
+            if (rowIndex < offices.length) {
+              dataRow[`col${colOffset}`] = offices[rowIndex].office;
+              dataRow[`col${colOffset + 1}`] = offices[rowIndex].count || 0;
+            } else {
+              dataRow[`col${colOffset}`] = '';
+              dataRow[`col${colOffset + 1}`] = '';
+            }
+          });
+          outputData.push(dataRow);
         }
 
-        const finalSheetData = [divisionHeaders, subHeaders, ...outputData];
-
-        // Create worksheet
-        const newWorksheet = XLSX.utils.json_to_sheet(finalSheetData);
-
-        // Style the division headers (bold)
-        XLSX.utils.decode_range(newWorksheet["!ref"]);
-        let currentRow = 0;
-
-        sortedDivisions.forEach((division) => {
-          const cellAddress = XLSX.utils.encode_cell({ r: currentRow, c: 0 });
-          if (newWorksheet[cellAddress]) {
-            newWorksheet[cellAddress].s = {
-              font: { bold: true, sz: 20 },
-              fill: { fgColor: { rgb: "E0E0E0" } },
-            };
-          }
-          currentRow += divisionGroups[division].length + 2;
+        // Total row
+        const totalRow = {};
+        sortedDivisions.forEach((division, divIndex) => {
+          const colOffset = divIndex * 2;
+          const total = divisionData[division].reduce((sum, item) => sum + item.count, 0);
+          totalRow[`col${colOffset}`] = 'Total';
+          totalRow[`col${colOffset + 1}`] = total || 0;
         });
+        outputData.push(totalRow);
+
+        // Create worksheet from array of arrays for better control
+        const ws_data = outputData.map(row => {
+          const arr = [];
+          let colIndex = 0;
+          while (row[`col${colIndex}`] !== undefined || row[`col${colIndex + 1}`] !== undefined) {
+            arr.push(row[`col${colIndex}`] || '');
+            arr.push(row[`col${colIndex + 1}`] || '');
+            colIndex += 2;
+          }
+          return arr;
+        });
+
+        const newWorksheet = XLSX.utils.aoa_to_sheet(ws_data);
+
+        // Merge cells for division headers
+        const merges = [];
+        sortedDivisions.forEach((division, index) => {
+          const colOffset = index * 2;
+          merges.push({
+            s: { r: 0, c: colOffset },
+            e: { r: 0, c: colOffset + 1 }
+          });
+        });
+        newWorksheet['!merges'] = merges;
+
+        // Set column widths
+        const colWidths = [];
+        sortedDivisions.forEach(() => {
+          colWidths.push({ wch: 20 }, { wch: 15 });
+        });
+        newWorksheet['!cols'] = colWidths;
 
         XLSX.utils.book_append_sheet(outputWorkbook, newWorksheet, sheetName);
       });
 
       // Generate and download the file
       const outputData = XLSX.write(outputWorkbook, {
-        bookType: "xlsx",
-        type: "array",
+        bookType: 'xlsx',
+        type: 'array'
       });
 
       const blob = new Blob([outputData], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       });
 
       const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
+      const link = document.createElement('a');
       link.href = url;
       link.download = `processed_${file.name}`;
       link.click();
       URL.revokeObjectURL(url);
 
-      setSuccess(
-        `Successfully processed ${workbook.SheetNames.length} sheet(s)!`
-      );
+      setSuccess(`Successfully processed ${workbook.SheetNames.length} sheet(s)!`);
     } catch (err) {
       setError(`Error processing file: ${err.message}`);
     } finally {
@@ -200,23 +226,22 @@ export default function ExcelProcessor() {
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="flex items-center justify-center mb-6">
             <FileSpreadsheet className="w-12 h-12 text-indigo-600 mr-3" />
-            <h2 className="text-4xl font-bold text-gray-800">
+            <h2 className="text-3xl font-bold text-gray-800">
               Excel Station Processor
             </h2>
           </div>
 
           <p className="text-gray-600 text-center mb-8">
-            Upload an Excel file with a STATION column to generate a
-            division-based summary report
+            Upload an Excel file with a STATION column to generate a division-based summary report
           </p>
 
           <div className="space-y-6">
             <button
               onClick={() => setShowMapping(!showMapping)}
-              className="w-full bg-gray-100 text-gray-200 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center"
+              className="w-full bg-gray-100 text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center"
             >
               <Settings className="w-5 h-5 mr-2" />
-              {showMapping ? "Hide" : "Configure"} Division Mapping
+              {showMapping ? 'Hide' : 'Configure'} Division Mapping
             </button>
 
             {showMapping && (
@@ -229,7 +254,6 @@ export default function ExcelProcessor() {
                   onChange={(e) => setMappingText(e.target.value)}
                   className="w-full h-48 p-3 border border-gray-300 rounded-lg font-mono text-sm"
                   placeholder='{"Division 1": ["Station1", "Station2"]}'
-                  style={{ color: "black" }}
                 />
                 <button
                   onClick={handleMappingUpdate}
@@ -254,7 +278,7 @@ export default function ExcelProcessor() {
               >
                 <Upload className="w-12 h-12 text-gray-400 mb-3" />
                 <span className="text-sm font-medium text-gray-700">
-                  {file ? file.name : "Click to upload Excel file"}
+                  {file ? file.name : 'Click to upload Excel file'}
                 </span>
                 <span className="text-xs text-gray-500 mt-1">
                   Supports .xlsx and .xls files
@@ -301,7 +325,7 @@ export default function ExcelProcessor() {
             <ul className="space-y-2 text-sm text-gray-600">
               <li className="flex items-start">
                 <span className="font-bold text-indigo-600 mr-2">1.</span>
-                Division mapping loads automatically
+                Division mapping loads automatically from division-mapping.json
               </li>
               <li className="flex items-start">
                 <span className="font-bold text-indigo-600 mr-2">2.</span>
@@ -313,7 +337,7 @@ export default function ExcelProcessor() {
               </li>
               <li className="flex items-start">
                 <span className="font-bold text-indigo-600 mr-2">4.</span>
-                Download Excel with divisions as headers and station counts
+                Download Excel with divisions in columns and totals at the bottom
               </li>
             </ul>
           </div>
