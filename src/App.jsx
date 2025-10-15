@@ -1,23 +1,57 @@
-import { useState } from 'react';
-import * as XLSX from 'xlsx';
-import { Upload, Download, FileSpreadsheet, AlertCircle, Settings } from 'lucide-react';
-import divisionMappingData from './assets/mapping.json';
+import { useEffect, useState } from "react";
+import * as XLSX from "xlsx";
+import {
+  Upload,
+  Download,
+  FileSpreadsheet,
+  AlertCircle,
+  Settings,
+} from "lucide-react";
+import divisionMappingData from "./assets/mapping.json";
 
 export default function ExcelProcessor() {
   const [file, setFile] = useState(null);
   const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [showMapping, setShowMapping] = useState(false);
-  const [divisionMapping, setDivisionMapping] = useState(divisionMappingData);
-  const [mappingText, setMappingText] = useState(JSON.stringify(divisionMappingData, null, 2));
+  const [divisionMapping, setDivisionMapping] = useState(null);
+  const [mappingText, setMappingText] = useState("");
+
+  useEffect(() => {
+    if (divisionMapping) {
+      localStorage.setItem("divisionMapping", JSON.stringify(divisionMapping));
+    }
+  }, [divisionMapping]);
+
+  useEffect(() => {
+    const loadMapping = async () => {
+      try {
+        // First check if there's a saved mapping in localStorage
+        const savedMapping = localStorage.getItem("divisionMapping");
+        if (savedMapping) {
+          const parsed = JSON.parse(savedMapping);
+          setDivisionMapping(parsed);
+          setMappingText(JSON.stringify(parsed, null, 2));
+          return;
+        }
+
+        // If no saved mapping, load from JSON file
+        setDivisionMapping(divisionMappingData);
+        setMappingText(JSON.stringify(divisionMappingData, null, 2));
+      } catch (err) {
+        setError("Failed to load division mapping file", err);
+      }
+    };
+    loadMapping();
+  }, []);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
       setFile(selectedFile);
-      setError('');
-      setSuccess('');
+      setError("");
+      setSuccess("");
     }
   };
 
@@ -26,31 +60,31 @@ export default function ExcelProcessor() {
       const parsed = JSON.parse(mappingText);
       setDivisionMapping(parsed);
       setShowMapping(false);
-      setError('');
-      setSuccess('Division mapping updated successfully!');
+      setError("");
+      setSuccess("Division mapping updated successfully!");
     } catch (err) {
-      setError('Invalid JSON format for division mapping', err);
+      setError("Invalid JSON format for division mapping", err);
     }
   };
 
   const processExcel = async () => {
     if (!file) {
-      setError('Please select an Excel file first');
+      setError("Please select an Excel file first");
       return;
     }
 
     if (!divisionMapping) {
-      setError('Division mapping not loaded yet');
+      setError("Division mapping not loaded yet");
       return;
     }
 
     setProcessing(true);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     try {
       const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
+      const workbook = XLSX.read(data, { type: "array" });
 
       const outputWorkbook = XLSX.utils.book_new();
 
@@ -59,11 +93,13 @@ export default function ExcelProcessor() {
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
         const stationKey = Object.keys(jsonData[0] || {}).find(
-          key => key.toUpperCase() === 'STATION'
+          (key) => key.toUpperCase() === "STATION"
         );
 
         if (!stationKey) {
-          throw new Error(`Sheet "${sheetName}" does not have a STATION column`);
+          throw new Error(
+            `Sheet "${sheetName}" does not have a STATION column`
+          );
         }
 
         // Count occurrences of each station
@@ -81,37 +117,39 @@ export default function ExcelProcessor() {
         // Build division data with all offices from mapping
         const sortedDivisions = Object.keys(divisionMapping).sort();
         const divisionData = {};
-        
-        sortedDivisions.forEach(division => {
+
+        sortedDivisions.forEach((division) => {
           const offices = divisionMapping[division];
           const officeData = [];
-          
+
           // Add all offices from mapping, sorted alphabetically
           const sortedOffices = [...offices].sort((a, b) => a.localeCompare(b));
-          sortedOffices.forEach(office => {
+          sortedOffices.forEach((office) => {
             // Find matching station (case-insensitive)
             const matchingStation = Object.keys(stationCounts).find(
-              station => station.toLowerCase() === office.toLowerCase()
+              (station) => station.toLowerCase() === office.toLowerCase()
             );
             const count = matchingStation ? stationCounts[matchingStation] : 0;
             officeData.push({ office, count });
           });
-          
+
           divisionData[division] = officeData;
         });
 
         // Calculate max rows needed
-        const maxRows = Math.max(...Object.values(divisionData).map(d => d.length));
+        const maxRows = Math.max(
+          ...Object.values(divisionData).map((d) => d.length)
+        );
 
         // Create output data in horizontal format
         const outputData = [];
-        
+
         // Header row 1: Division names
         const divisionHeaderRow = {};
         sortedDivisions.forEach((division, index) => {
           const colOffset = index * 2;
           divisionHeaderRow[`col${colOffset}`] = division;
-          divisionHeaderRow[`col${colOffset + 1}`] = '';
+          divisionHeaderRow[`col${colOffset + 1}`] = "";
         });
         outputData.push(divisionHeaderRow);
 
@@ -119,8 +157,8 @@ export default function ExcelProcessor() {
         const columnHeaderRow = {};
         sortedDivisions.forEach((division, index) => {
           const colOffset = index * 2;
-          columnHeaderRow[`col${colOffset}`] = 'Office';
-          columnHeaderRow[`col${colOffset + 1}`] = 'No. of Toolkits';
+          columnHeaderRow[`col${colOffset}`] = "Office";
+          columnHeaderRow[`col${colOffset + 1}`] = "No. of Toolkits";
         });
         outputData.push(columnHeaderRow);
 
@@ -134,8 +172,8 @@ export default function ExcelProcessor() {
               dataRow[`col${colOffset}`] = offices[rowIndex].office;
               dataRow[`col${colOffset + 1}`] = offices[rowIndex].count;
             } else {
-              dataRow[`col${colOffset}`] = '';
-              dataRow[`col${colOffset + 1}`] = '';
+              dataRow[`col${colOffset}`] = "";
+              dataRow[`col${colOffset + 1}`] = "";
             }
           });
           outputData.push(dataRow);
@@ -145,17 +183,23 @@ export default function ExcelProcessor() {
         const totalRow = {};
         sortedDivisions.forEach((division, divIndex) => {
           const colOffset = divIndex * 2;
-          const total = divisionData[division].reduce((sum, item) => sum + item.count, 0);
-          totalRow[`col${colOffset}`] = 'Total';
+          const total = divisionData[division].reduce(
+            (sum, item) => sum + item.count,
+            0
+          );
+          totalRow[`col${colOffset}`] = "Total";
           totalRow[`col${colOffset + 1}`] = total;
         });
         outputData.push(totalRow);
 
         // Create worksheet from array of arrays for better control
-        const ws_data = outputData.map(row => {
+        const ws_data = outputData.map((row) => {
           const arr = [];
           let colIndex = 0;
-          while (row[`col${colIndex}`] !== undefined || row[`col${colIndex + 1}`] !== undefined) {
+          while (
+            row[`col${colIndex}`] !== undefined ||
+            row[`col${colIndex + 1}`] !== undefined
+          ) {
             arr.push(row[`col${colIndex}`]);
             arr.push(row[`col${colIndex + 1}`]);
             colIndex += 2;
@@ -171,39 +215,41 @@ export default function ExcelProcessor() {
           const colOffset = index * 2;
           merges.push({
             s: { r: 0, c: colOffset },
-            e: { r: 0, c: colOffset + 1 }
+            e: { r: 0, c: colOffset + 1 },
           });
         });
-        newWorksheet['!merges'] = merges;
+        newWorksheet["!merges"] = merges;
 
         // Set column widths
         const colWidths = [];
         sortedDivisions.forEach(() => {
           colWidths.push({ wch: 20 }, { wch: 15 });
         });
-        newWorksheet['!cols'] = colWidths;
+        newWorksheet["!cols"] = colWidths;
 
         XLSX.utils.book_append_sheet(outputWorkbook, newWorksheet, sheetName);
       });
 
       // Generate and download the file
       const outputData = XLSX.write(outputWorkbook, {
-        bookType: 'xlsx',
-        type: 'array'
+        bookType: "xlsx",
+        type: "array",
       });
 
       const blob = new Blob([outputData], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
       link.download = `processed_${file.name}`;
       link.click();
       URL.revokeObjectURL(url);
 
-      setSuccess(`Successfully processed ${workbook.SheetNames.length} sheet(s)!`);
+      setSuccess(
+        `Successfully processed ${workbook.SheetNames.length} sheet(s)!`
+      );
     } catch (err) {
       setError(`Error processing file: ${err.message}`);
     } finally {
@@ -223,7 +269,8 @@ export default function ExcelProcessor() {
           </div>
 
           <p className="text-gray-600 text-center mb-8">
-            Upload an Excel file with a STATION column to generate a division-based summary report
+            Upload an Excel file with a STATION column to generate a
+            division-based summary report
           </p>
 
           <div className="space-y-6">
@@ -232,7 +279,7 @@ export default function ExcelProcessor() {
               className="w-full bg-gray-100 text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition-colors flex items-center justify-center"
             >
               <Settings className="w-5 h-5 mr-2" />
-              {showMapping ? 'Hide' : 'Configure'} Division Mapping
+              {showMapping ? "Hide" : "Configure"} Division Mapping
             </button>
 
             {showMapping && (
@@ -245,6 +292,7 @@ export default function ExcelProcessor() {
                   onChange={(e) => setMappingText(e.target.value)}
                   className="w-full h-48 p-3 border border-gray-300 rounded-lg font-mono text-sm"
                   placeholder='{"Division 1": ["Station1", "Station2"]}'
+                  style={{color: 'black'}}
                 />
                 <button
                   onClick={handleMappingUpdate}
@@ -269,7 +317,7 @@ export default function ExcelProcessor() {
               >
                 <Upload className="w-12 h-12 text-gray-400 mb-3" />
                 <span className="text-sm font-medium text-gray-700">
-                  {file ? file.name : 'Click to upload Excel file'}
+                  {file ? file.name : "Click to upload Excel file"}
                 </span>
                 <span className="text-xs text-gray-500 mt-1">
                   Supports .xlsx and .xls files
@@ -328,7 +376,8 @@ export default function ExcelProcessor() {
               </li>
               <li className="flex items-start">
                 <span className="font-bold text-indigo-600 mr-2">4.</span>
-                Download Excel with divisions in columns and totals at the bottom
+                Download Excel with divisions in columns and totals at the
+                bottom
               </li>
             </ul>
           </div>
