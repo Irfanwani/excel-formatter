@@ -93,7 +93,7 @@ export default function ExcelProcessor() {
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
         const stationKey = Object.keys(jsonData[0] || {}).find(
-          (key) => key.toUpperCase() === "STATION"
+          (key) => key.toUpperCase().trim() === "STATION"
         );
 
         if (!stationKey) {
